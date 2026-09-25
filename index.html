@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0a0d13">
+<title>App Updater Helper</title>
+<style>
+/* ============================================================
+   THEME TOKENS
+   ============================================================ */
+:root{
+  --bg:#0a0d13;
+  --surface:#141a24;
+  --surface-2:#1c2331;
+  --surface-3:#222b3b;
+  --border:rgba(255,255,255,.09);
+  --border-strong:rgba(255,255,255,.22);
+  --text:#eef2f9;
+  --muted:#8b94a8;
+  --accent:#4f8cff;
+  --accent-2:#8b5cff;
+  --green:#25d07a;
+  --amber:#ffb020;
+  --red:#ff4d5e;
+  --glass:rgba(10,13,19,.78);
+  --shadow:0 18px 40px rgba(0,0,0,.45);
+  --shadow-sm:0 8px 20px rgba(0,0,0,.28);
+}
+:root[data-theme="light"]{
+  --bg:#f2f5fb;
+  --surface:#ffffff;
+  --surface-2:#eef2f9;
+  --surface-3:#e4eaf4;
+  --border:rgba(15,23,42,.09);
+  --border-strong:rgba(15,23,42,.24);
+  --text:#0f172a;
+  --muted:#64708a;
+  --glass:rgba(255,255,255,.82);
+  --shadow:0 18px 40px rgba(15,23,42,.10);
+  --shadow-sm:0 8px 20px rgba(15,23,42,.07);
+}
+
+*,*::before,*::after{box-sizing:border-box;}
+
+html,body{height:100%;}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  overflow-x:hidden;
+  transition:background .35s ease,color .35s ease;
+}
+
+/* Decorative background glow */
+.bg-glow{
+  position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(720px 520px at 6% -12%, rgba(79,140,255,.20), transparent 65%),
+    radial-gradient(620px 520px at 102% -4%, rgba(139,92,255,.17), transparent 65%),
+    radial-gradient(760px 620px at 50% 112%, rgba(37,208,122,.09), transparent 68%);
+  transition:opacity .35s ease;
+}
+:root[data-theme="light"] .bg-glow{opacity:.75;}
+
+/* ============================================================
+   LAYOUT
+   ============================================================ */
+.page{
+  position:relative;z-index:1;
+  max-width:1180px;
+  margin:0 auto;
+  padding:30px 22px 160px;
+}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+.brand{
+  display:flex;
+  align-items:center;
+  gap:16px;
+}
+.logo{
+  width:60px;height:60px;
+  flex:0 0 auto;
+  border-radius:19px;
+  background:linear-gradient(135deg,#4f8cff 0%,#8b5cff 100%);
+  display:grid;place-items:center;
+  box-shadow:0 12px 28px rgba(79,140,255,.38);
+}
+.logo svg{width:33px;height:33px;}
+.brand-titles{min-width:0;flex:1;}
+.brand-titles h1{
+  margin:0;
+  font-size:clamp(20px,2.7vw,27px);
+  font-weight:800;
+  letter-spacing:-.5px;
+  line-height:1.15;
+}
+.brand-titles p{
+  margin:5px 0 0;
+  font-size:14px;
+  color:var(--muted);
+  font-weight:500;
+  line-height:1.3;
+}
+.icon-btn{
+  flex:0 0 auto;
+  width:48px;height:48px;
+  border-radius:15px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  color:var(--text);
+  display:grid;place-items:center;
+  cursor:pointer;
+  transition:transform .2s ease,border-color .2s ease,background .2s ease;
+}
+.icon-btn:hover{transform:translateY(-2px);border-color:var(--border-strong);}
+.icon-btn svg{width:22px;height:22px;}
+
+/* ============================================================
+   SEARCH
+   ============================================================ */
+.search{
+  position:relative;
+  margin-top:24px;
+  display:flex;
+  align-items:center;
+}
+.search .s-icon{
+  position:absolute;left:19px;
+  width:20px;height:20px;
+  color:var(--muted);
+  pointer-events:none;
+  transition:color .2s ease;
+}
+.search input{
+  width:100%;
+  height:58px;
+  border-radius:19px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  color:var(--text);
+  font-size:15.5px;
+  font-family:inherit;
+  font-weight:500;
+  padding:0 56px 0 54px;
+  outline:none;
+  transition:border-color .2s ease,box-shadow .2s ease;
+  -webkit-appearance:none;
+}
+.search input::placeholder{color:var(--muted);font-weight:500;}
+.search input:focus{
+  border-color:var(--accent);
+  box-shadow:0 0 0 4px rgba(79,140,255,.16);
+}
+.search input:focus + .s-icon,
+.search:focus-within .s-icon{color:var(--accent);}
+.clear-btn{
+  position:absolute;right:13px;
+  width:36px;height:36px;
+  border-radius:11px;
+  border:none;
+  background:var(--surface-2);
+  color:var(--muted);
+  font-size:19px;
+  line-height:1;
+  cursor:pointer;
+  display:grid;place-items:center;
+  transition:background .2s ease,color .2s ease;
+}
+.clear-btn:hover{background:var(--surface-3);color:var(--text);}
+
+/* ============================================================
+   TOOLBAR : COUNTER + FILTER CHIPS
+   ============================================================ */
+.toolbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  margin-top:20px;
+  flex-wrap:wrap;
+}
+.stat{
+  display:flex;
+  align-items:center;
+  gap:11px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:17px;
+  padding:12px 20px;
+  min-height:52px;
+}
+.stat b{
+  font-size:23px;
+  font-weight:800;
+  letter-spacing:-.5px;
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+  line-height:1;
+}
+.stat span{
+  color:var(--muted);
+  font-size:13.5px;
+  font-weight:700;
+  letter-spacing:.1px;
+}
+.chips{display:flex;gap:10px;flex-wrap:wrap;}
+.chip{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:9px;
+  padding:0 20px;
+  min-height:52px;
+  border-radius:17px;
+  border:1px solid var(--border);
+  background:var(--surface);
+  color:var(--muted);
+  font-family:inherit;
+  font-weight:700;
+  font-size:14px;
+  cursor:pointer;
+  transition:transform .2s ease,color .2s ease,border-color .2s ease,background .25s ease,box-shadow .25s ease;
+}
+.chip:hover{color:var(--text);border-color:var(--border-strong);transform:translateY(-1px);}
+.chip.is-active{
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  color:#fff;
+  border-color:transparent;
+  box-shadow:0 10px 24px rgba(79,140,255,.34);
+}
+.badge{
+  background:rgba(255,255,255,.24);
+  border-radius:999px;
+  padding:1px 9px;
+  font-size:12px;
+  font-weight:800;
+  min-width:23px;
+  text-align:center;
+}
+.chip:not(.is-active) .badge{
+  background:var(--amber);
+  color:#231700;
+}
+
+/* ============================================================
+   UPDATES PANEL
+   ============================================================ */
+.panel{
+  margin-top:28px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:26px;
+  padding:22px;
+  box-shadow:var(--shadow);
+  animation:cardIn .45s cubic-bezier(.2,.8,.3,1) both;
+}
+.panel-head{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin-bottom:16px;
+  flex-wrap:wrap;
+}
+.panel-head h2{
+  margin:0;
+  font-size:17.5px;
+  font-weight:800;
+  letter-spacing:-.25px;
+}
+.count-pill{
+  background:rgba(255,176,32,.16);
+  color:var(--amber);
+  font-size:12.5px;
+  font-weight:800;
+  padding:5px 12px;
+  border-radius:999px;
+  letter-spacing:.2px;
+}
+.count-pill.zero{
+  background:rgba(37,208,122,.15);
+  color:var(--green);
+}
+.update-list{display:grid;gap:10px;}
+.update-row{
+  display:flex;
+  align-items:center;
+  gap:15px;
+  padding:13px 15px;
+  border-radius:18px;
+  background:var(--surface-2);
+  border:1px solid transparent;
+  transition:border-color .2s ease,transform .2s ease,background .2s ease;
+  animation:cardIn .35s cubic-bezier(.2,.8,.3,1) both;
+}
+.update-row:hover{border-color:var(--border-strong);transform:translateX(2px);}
+.update-info{flex:1;min-width:0;}
+.update-info .n{
+  font-weight:700;
+  font-size:14.5px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.update-info .v{
+  font-size:12.5px;
+  color:var(--muted);
+  margin-top:3px;
+  font-weight:600;
+}
+.update-info .v em{
+  font-style:normal;
+  color:var(--amber);
+  font-weight:800;
+}
+.btn-update{
+  flex:0 0 auto;
+  border:none;
+  border-radius:13px;
+  padding:0 20px;
+  height:44px;
+  font-family:inherit;
+  font-weight:800;
+  font-size:13.5px;
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  color:#fff;
+  cursor:pointer;
+  white-space:nowrap;
+  transition:transform .2s ease,box-shadow .2s ease,opacity .2s ease;
+  box-shadow:0 8px 18px rgba(79,140,255,.3);
+}
+.btn-update:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 12px 24px rgba(79,140,255,.42);}
+.btn-update:disabled{opacity:.6;cursor:progress;transform:none;box-shadow:none;}
+
+.updates-empty{
+  display:flex;
+  align-items:center;
+  gap:15px;
+  padding:20px 16px;
+  border-radius:18px;
+  background:var(--surface-2);
+  border:1px dashed var(--border);
+}
+.updates-empty svg{width:34px;height:34px;flex:0 0 auto;color:var(--green);}
+.updates-empty b{display:block;font-size:14.5px;font-weight:800;}
+.updates-empty span{display:block;font-size:13px;color:var(--muted);margin-top:2px;font-weight:500;}
+
+/* ============================================================
+   SECTION HEADINGS
+   ============================================================ */
+.section-head{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin:34px 2px 16px;
+  flex-wrap:wrap;
+}
+.section-head h2{
+  margin:0;
+  font-size:18.5px;
+  font-weight:800;
+  letter-spacing:-.3px;
+}
+.section-head .sub{
+  font-size:13px;
+  font-weight:700;
+  color:var(--muted);
+  background:var(--surface);
+  border:1px solid var(--border);
+  padding:4px 12px;
+  border-radius:999px;
+}
+
+/* ============================================================
+   APP GRID + CARDS
+   ============================================================ */
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(330px,1fr));
+  gap:16px;
+}
+.card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:24px;
+  padding:18px;
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+  position:relative;
+  overflow:hidden;
+  box-shadow:var(--shadow-sm);
+  transition:transform .28s cubic-bezier(.2,.8,.3,1),border-color .28s ease,box-shadow .28s ease;
+  animation:cardIn .42s cubic-bezier(.2,.8,.3,1) both;
+  outline:none;
+}
+.card::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius:24px;
+  pointer-events:none;
+  background:linear-gradient(180deg,rgba(255,255,255,.045),transparent 42%);
+  opacity:0;
+  transition:opacity .3s ease;
+}
+:root[data-theme="light"] .card::after{background:linear-gradient(180deg,rgba(79,140,255,.05),transparent 42%);}
+.card:hover{
+  transform:translateY(-4px);
+  border-color:var(--border-strong);
+  box-shadow:0 20px 40px rgba(0,0,0,.30);
+}
+:root[data-theme="light"] .card:hover{box-shadow:0 20px 40px rgba(15,23,42,.14);}
+.card:hover::after{opacity:1;}
+.card.hidden{display:none;}
+
+.card-top{display:flex;gap:15px;align-items:flex-start;}
+.app-icon{
+  width:56px;height:56px;
+  flex:0 0 auto;
+  border-radius:17px;
+  display:grid;place-items:center;
+  box-shadow:0 8px 20px rgba(0,0,0,.28);
+}
+.app-icon svg{width:31px;height:31px;display:block;}
+.app-icon.sm{width:44px;height:44px;border-radius:14px;}
+.app-icon.sm svg{width:24px;height:24px;}
+
+.app-info{flex:1;min-width:0;}
+.app-name{
+  font-weight:800;
+  font-size:16px;
+  letter-spacing:-.2px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.app-pkg{
+  font-size:12px;
+  color:var(--muted);
+  margin-top:4px;
+  font-weight:600;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.ver-row{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  margin-top:10px;
+  flex-wrap:wrap;
+}
+.tag{
+  font-size:11.5px;
+  font-weight:800;
+  padding:4px 10px;
+  border-radius:9px;
+  background:var(--surface-2);
+  color:var(--muted);
+  letter-spacing:.1px;
+}
+.tag.tag-new{
+  background:rgba(255,176,32,.14);
+  color:var(--amber);
+}
+.arrow{color:var(--muted);font-size:12.5px;font-weight:800;}
+
+.card-bottom{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding-top:16px;
+  border-top:1px solid var(--border);
+  margin-top:auto;
+}
+
+.status{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  font-size:12.5px;
+  font-weight:800;
+  padding:9px 15px;
+  border-radius:999px;
+  white-space:nowrap;
+  letter-spacing:.1px;
+  transition:color .25s ease,background .25s ease;
+}
+.status .dot{
+  width:8px;height:8px;
+  border-radius:50%;
+  background:currentColor;
+  box-shadow:0 0 9px currentColor;
+  flex:0 0 auto;
+}
+.status.s-update{color:var(--amber);background:rgba(255,176,32,.13);}
+.status.s-current{color:var(--green);background:rgba(37,208,122,.13);}
+.status.s-checking{color:var(--accent);background:rgba(79,140,255,.14);}
+
+.spin{
+  width:12px;height:12px;
+  border-radius:50%;
+  border:2px solid rgba(79,140,255,.28);
+  border-top-color:var(--accent);
+  animation:spin .68s linear infinite;
+  flex:0 0 auto;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+.btn-check{
+  flex:0 0 auto;
+  border:1px solid var(--border);
+  background:var(--surface-2);
+  color:var(--text);
+  font-family:inherit;
+  font-weight:800;
+  font-size:13.5px;
+  padding:0 18px;
+  height:46px;
+  border-radius:14px;
+  cursor:pointer;
+  white-space:nowrap;
+  transition:transform .2s ease,background .25s ease,color .25s ease,box-shadow .25s ease,border-color .25s ease,opacity .2s ease;
+}
+.btn-check:hover:not(:disabled){
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  color:#fff;
+  border-color:transparent;
+  transform:translateY(-2px);
+  box-shadow:0 10px 22px rgba(79,140,255,.34);
+}
+.btn-check:active:not(:disabled){transform:translateY(0);}
+.btn-check:disabled{opacity:.55;cursor:progress;}
+
+/* ============================================================
+   EMPTY STATE
+   ============================================================ */
+.empty-state{
+  text-align:center;
+  padding:56px 22px;
+  color:var(--muted);
+  border:1px dashed var(--border);
+  border-radius:24px;
+  background:var(--surface);
+}
+.empty-state svg{width:52px;height:52px;opacity:.45;margin-bottom:14px;}
+.empty-state b{display:block;font-size:16px;color:var(--text);font-weight:800;margin-bottom:5px;}
+.empty-state span{font-size:13.5px;font-weight:500;}
+
+/* ============================================================
+   STICKY ACTION BAR
+   ============================================================ */
+.actionbar{
+  position:fixed;
+  left:0;right:0;bottom:0;
+  z-index:50;
+  background:var(--glass);
+  -webkit-backdrop-filter:blur(22px) saturate(1.5);
+  backdrop-filter:blur(22px) saturate(1.5);
+  border-top:1px solid var(--border);
+  padding:13px 22px calc(13px + env(safe-area-inset-bottom,0px));
+  transition:background .35s ease;
+}
+.progress{
+  position:absolute;
+  top:0;left:0;right:0;
+  height:3px;
+  opacity:0;
+  transition:opacity .3s ease;
+  pointer-events:none;
+}
+.progress.on{opacity:1;}
+.progress i{
+  display:block;
+  height:100%;
+  width:0;
+  border-radius:0 3px 3px 0;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  transition:width .32s cubic-bezier(.2,.8,.3,1);
+  box-shadow:0 0 12px rgba(79,140,255,.8);
+}
+.actionbar-inner{
+  max-width:1180px;
+  margin:0 auto;
+  display:flex;
+  align-items:center;
+  gap:20px;
+}
+.ab-text{
+  flex:1;
+  min-width:0;
+  font-size:14px;
+  font-weight:600;
+  color:var(--muted);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.ab-text b{color:var(--text);font-weight:800;}
+
+.btn-primary{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:12px;
+  border:none;
+  border-radius:18px;
+  height:58px;
+  padding:0 34px;
+  min-width:270px;
+  font-family:inherit;
+  font-size:15.5px;
+  font-weight:800;
+  letter-spacing:.2px;
+  color:#fff;
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  cursor:pointer;
+  box-shadow:0 14px 30px rgba(79,140,255,.36);
+  transition:transform .22s cubic-bezier(.2,.8,.3,1),box-shadow .22s ease,opacity .2s ease;
+  flex:0 0 auto;
+}
+.btn-primary svg{width:22px;height:22px;flex:0 0 auto;}
+.btn-primary:hover:not(:disabled){transform:translateY(-3px);box-shadow:0 18px 38px rgba(79,140,255,.46);}
+.btn-primary:active:not(:disabled){transform:translateY(-1px);}
+.btn-primary:disabled{opacity:.68;cursor:progress;box-shadow:none;}
+
+/* ============================================================
+   FOCUS (Android TV / Fire TV / keyboard)
+   ============================================================ */
+:focus-visible{
+  outline:3px solid var(--accent);
+  outline-offset:3px;
+}
+.card:focus-visible{
+  outline:3px solid var(--accent);
+  outline-offset:4px;
+  border-color:transparent;
+  transform:translateY(-4px);
+}
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+@keyframes cardIn{
+  from{opacity:0;transform:translateY(12px);}
+  to{opacity:1;transform:translateY(0);}
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width:760px){
+  .grid{grid-template-columns:repeat(auto-fill,minmax(290px,1fr));}
+}
+
+@media (max-width:640px){
+  .page{padding:22px 15px 150px;}
+  .logo{width:52px;height:52px;border-radius:16px;}
+  .logo svg{width:28px;height:28px;}
+  .brand{gap:13px;}
+  .brand-titles h1{font-size:19.5px;}
+  .brand-titles p{font-size:12.5px;}
+  .icon-btn{width:44px;height:44px;border-radius:14px;}
+  .search input{height:54px;font-size:15px;padding:0 52px 0 50px;}
+  .toolbar{flex-direction:column;align-items:stretch;}
+  .stat{justify-content:center;}
+  .chips{display:grid;grid-template-columns:1fr 1fr;}
+  .chip{padding:0 14px;font-size:13.5px;}
+  .panel{padding:17px;border-radius:22px;}
+  .card{border-radius:22px;padding:16px;}
+  .card-bottom{flex-direction:column;align-items:stretch;gap:11px;}
+  .status{justify-content:center;}
+  .btn-check{width:100%;}
+  .update-row{flex-wrap:wrap;gap:12px;}
+  .update-info{flex:1 1 130px;}
+  .btn-update{flex:1 1 100%;}
+  .ab-text{display:none;}
+  .btn-primary{width:100%;min-width:0;padding:0 20px;}
+  .actionbar{padding:12px 15px calc(12px + env(safe-area-inset-bottom,0px));}
+}
+
+@media (max-width:380px){
+  .chips{grid-template-columns:1fr;}
+}
+
+/* Large screens / TV */
+@media (min-width:1500px){
+  .page{max-width:1360px;}
+  .actionbar-inner{max-width:1360px;}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(360px,1fr));}
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:.001ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:.001ms !important;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="bg-glow" aria-hidden="true"></div>
+
+<div class="page">
+
+  <!-- ===================== HEADER ===================== -->
+  <header class="brand">
+    <div class="logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 15.5V3.8"/>
+        <path d="M7.2 8.6 12 3.8l4.8 4.8"/>
+        <path d="M4.4 15.2v2.9a2.6 2.6 0 0 0 2.6 2.6h10a2.6 2.6 0 0 0 2.6-2.6v-2.9"/>
+      </svg>
+    </div>
+    <div class="brand-titles">
+      <h1>App Updater Helper</h1>
+      <p>Keep your apps organized and up to date</p>
+    </div>
+    <button class="icon-btn" id="themeBtn" type="button" aria-label="Toggle dark or light theme"></button>
+  </header>
+
+  <!-- ===================== SEARCH ===================== -->
+  <div class="search">
+    <svg class="s-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+      <circle cx="11" cy="11" r="6.6"/>
+      <path d="M16 16l4.6 4.6"/>
+    </svg>
+    <input id="searchInput" type="search" placeholder="Search apps or package names…" autocomplete="off" spellcheck="false" aria-label="Search installed apps">
+    <button class="clear-btn" id="clearBtn" type="button" aria-label="Clear search" hidden>&times;</button>
+  </div>
+
+  <!-- ===================== TOOLBAR ===================== -->
+  <div class="toolbar">
+    <div class="stat">
+      <b id="appCount">8</b>
+      <span>Installed Apps</span>
+    </div>
+    <div class="chips" role="tablist" aria-label="App filters">
+      <button class="chip is-active" type="button" data-filter="all" role="tab" aria-selected="true">All Apps</button>
+      <button class="chip" type="button" data-filter="updates" role="tab" aria-selected="false">
+        Updates <span class="badge" id="badgeCount">4</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ===================== UPDATES AVAILABLE ===================== -->
+  <section class="panel" aria-labelledby="updatesTitle">
+    <div class="panel-head">
+      <h2 id="updatesTitle">Updates Available</h2>
+      <span class="count-pill" id="updatePill">4</span>
+    </div>
+    <div class="update-list" id="updateList"></div>
+    <div class="updates-empty" id="updatesEmpty" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9"/>
+        <path d="M8 12.4l2.7 2.7L16.2 9.6"/>
+      </svg>
+      <div>
+        <b>All apps are up to date</b>
+        <span>No updates available right now.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== INSTALLED APPS ===================== -->
+  <div class="section-head">
+    <h2 id="gridTitle">Installed Apps</h2>
+    <span class="sub" id="gridCount">8 apps</span>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <div class="empty-state" id="emptyState" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+      <circle cx="11" cy="11" r="6.6"/>
+      <path d="M16 16l4.6 4.6"/>
+      <path d="M8.6 11h4.8"/>
+    </svg>
+    <b>No apps found</b>
+    <span>Try a different search term or switch filters.</span>
+  </div>
+
+</div>
+
+<!-- ===================== STICKY ACTION BAR ===================== -->
+<div class="actionbar">
+  <div class="progress" id="progress"><i id="progressFill"></i></div>
+  <div class="actionbar-inner">
+    <div class="ab-text" id="abText"></div>
+    <button class="btn-primary" id="checkAllBtn" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/>
+        <path d="M20.5 3.6v5.2h-5.2"/>
+      </svg>
+      Check All Apps
+    </button>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ============================================================
+     APP ICONS (inline SVG — no external libraries)
+     ============================================================ */
+  var ICONS = {
+    youtube:
+      '<svg viewBox="0 0 24 24"><path d="M9.6 7.7v8.6l7.4-4.3z" fill="#fff"/></svg>',
+
+    chrome:
+      '<svg viewBox="0 0 24 24">' +
+        '<circle cx="12" cy="12" r="9" fill="#fff"/>' +
+        '<path d="M12 3a9 9 0 0 1 7.79 4.5H12a4.5 4.5 0 0 0-4.24 3.02L4.5 6.4A9 9 0 0 1 12 3z" fill="#ea4335"/>' +
+        '<path d="M19.79 7.5A9 9 0 0 1 12 21l3.9-6.75a4.5 4.5 0 0 0 .3-3.75z" fill="#fbbc05"/>' +
+        '<path d="M4.5 6.4l3.26 4.1A4.5 4.5 0 0 0 12 16.5H7.4z" fill="#34a853"/>' +
+        '<circle cx="12" cy="12" r="4.2" fill="#4285f4"/>' +
+      '</svg>',
+
+    files:
+      '<svg viewBox="0 0 24 24">' +
+        '<path d="M3.5 6.9c0-1.12.9-2.03 2.02-2.03h3.1c.63 0 1.22.29 1.6.79l.92 1.2h7.36c1.12 0 2.02.91 2.02 2.03v8.4c0 1.12-.9 2.02-2.02 2.02H5.52A2.02 2.02 0 0 1 3.5 17.3z" fill="#fff"/>' +
+      '</svg>',
+
+    calculator:
+      '<svg viewBox="0 0 24 24">' +
+        '<rect x="4.6" y="2.5" width="14.8" height="19" rx="3.2" fill="#fff"/>' +
+        '<rect x="7.2" y="5.3" width="9.6" height="3.6" rx="1.2" fill="#ff8a00"/>' +
+        '<circle cx="8.7" cy="12.3" r="1.35" fill="#ff8a00"/>' +
+        '<circle cx="12" cy="12.3" r="1.35" fill="#ff8a00"/>' +
+        '<circle cx="15.3" cy="12.3" r="1.35" fill="#ff8a00"/>' +
+        '<circle cx="8.7" cy="16.6" r="1.35" fill="#ff8a00"/>' +
+        '<circle cx="12" cy="16.6" r="1.35" fill="#ff8a00"/>' +
+        '<circle cx="15.3" cy="16.6" r="1.35" fill="#ff8a00"/>' +
+      '</svg>',
+
+    music:
+      '<svg viewBox="0 0 24 24">' +
+        '<path d="M9.2 17.4V6.8l8.6-2v10.4" fill="none" stroke="#fff" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round"/>' +
+        '<circle cx="6.6" cy="17.4" r="2.6" fill="#fff"/>' +
+        '<circle cx="15.2" cy="15.2" r="2.6" fill="#fff"/>' +
+      '</svg>',
+
+    gallery:
+      '<svg viewBox="0 0 24 24">' +
+        '<rect x="2.6" y="4.2" width="18.8" height="15.6" rx="3.4" fill="#fff"/>' +
+        '<circle cx="8.5" cy="9.3" r="1.95" fill="#ff4d8d"/>' +
+        '<path d="M4.5 18.2l4.8-5.6 3.2 3.6 2.9-2.6 4.2 4.6z" fill="#ff4d8d"/>' +
+      '</svg>',
+
+    settings:
+      '<svg viewBox="0 0 24 24">' +
+        '<g stroke="#fff" stroke-width="2.1" stroke-linecap="round">' +
+          '<path d="M3.6 7h9.5M18 7h2.4"/>' +
+          '<path d="M3.6 12h4.5M13 12h7.4"/>' +
+          '<path d="M3.6 17h9.5M18 17h2.4"/>' +
+        '</g>' +
+        '<circle cx="15.5" cy="7" r="2.4" fill="#fff"/>' +
+        '<circle cx="10.5" cy="12" r="2.4" fill="#fff"/>' +
+        '<circle cx="15.5" cy="17" r="2.4" fill="#fff"/>' +
+      '</svg>',
+
+    video:
+      '<svg viewBox="0 0 24 24">' +
+        '<rect x="2.6" y="5.2" width="18.8" height="13.6" rx="3.4" fill="#fff"/>' +
+        '<path d="M10.2 9.2l5.3 2.8-5.3 2.8z" fill="#3b4bd8"/>' +
+      '</svg>'
+  };
+
+  /* ============================================================
+     SAMPLE DATA (demo only — nothing is ever really checked)
+     ============================================================ */
+  var APPS = [
+    {
+      id: "youtube", name: "YouTube", icon: "youtube",
+      pkg: "com.google.android.youtube",
+      installed: "19.16.39", latest: "19.20.34",
+      updateAvailable: true,
+      color: "linear-gradient(135deg,#ff5f5f,#cc0000)"
+    },
+    {
+      id: "chrome", name: "Chrome", icon: "chrome",
+      pkg: "com.android.chrome",
+      installed: "124.0.6367.82", latest: "125.0.6422.35",
+      updateAvailable: true,
+      color: "linear-gradient(135deg,#5fb2ff,#2c6fe0)"
+    },
+    {
+      id: "files", name: "Files", icon: "files",
+      pkg: "com.android.documentsui",
+      installed: "14.2.1", latest: "14.2.1",
+      updateAvailable: false,
+      color: "linear-gradient(135deg,#6a9bff,#2f5fe0)"
+    },
+    {
+      id: "calculator", name: "Calculator", icon: "calculator",
+      pkg: "com.android.calculator2",
+      installed: "12.0.3", latest: "12.0.3",
+      updateAvailable: false,
+      color: "linear-gradient(135deg,#ffbe55,#f08a00)"
+    },
+    {
+      id: "music", name: "Music", icon: "music",
+      pkg: "com.android.music",
+      installed: "8.4.2", latest: "8.6.0",
+      updateAvailable: true,
+      color: "linear-gradient(135deg,#b07bff,#6a35f0)"
+    },
+    {
+      id: "gallery", name: "Gallery", icon: "gallery",
+      pkg: "com.android.gallery3d",
+      installed: "7.1.0", latest: "7.1.0",
+      updateAvailable: false,
+      color: "linear-gradient(135deg,#ff8ec0,#f0407f)"
+    },
+    {
+      id: "settings", name: "Settings", icon: "settings",
+      pkg: "com.android.settings",
+      installed: "14.0.0", latest: "14.0.0",
+      updateAvailable: false,
+      color: "linear-gradient(135deg,#5fd9c8,#159a8b)"
+    },
+    {
+      id: "video", name: "Video Player", icon: "video",
+      pkg: "com.android.videoplayer",
+      installed: "5.2.9", latest: "5.3.1",
+      updateAvailable: true,
+      color: "linear-gradient(135deg,#7a89ff,#3a45c9)"
+    }
+  ];
+
+  /* ============================================================
+     STATE
+     ============================================================ */
+  var state = APPS.map(function (a) {
+    return {
+      id: a.id,
+      name: a.name,
+      icon: a.icon,
+      pkg: a.pkg,
+      installed: a.installed,
+      latest: a.latest,
+      updateAvailable: a.updateAvailable,
+      color: a.color,
+      mode: "idle" // idle | checking | updating
+    };
+  });
+
+  var currentFilter = "all";
+  var searchQuery = "";
+  var isBusy = false;
+
+  /* ============================================================
+     DOM REFS
+     ============================================================ */
+  var grid          = document.getElementById("grid");
+  var updateList    = document.getElementById("updateList");
+  var updatesEmpty  = document.getElementById("updatesEmpty");
+  var updatePill    = document.getElementById("updatePill");
+  var appCountEl    = document.getElementById("appCount");
+  var badgeCountEl  = document.getElementById("badgeCount");
+  var gridCountEl   = document.getElementById("gridCount");
+  var gridTitleEl   = document.getElementById("gridTitle");
+  var emptyState    = document.getElementById("emptyState");
+  var searchInput   = document.getElementById("searchInput");
+  var clearBtn      = document.getElementById("clearBtn");
+  var themeBtn      = document.getElementById("themeBtn");
+  var checkAllBtn   = document.getElementById("checkAllBtn");
+  var abText        = document.getElementById("abText");
+  var progress      = document.getElementById("progress");
+  var progressFill  = document.getElementById("progressFill");
+
+  var cardRefs = {};
+
+  /* ============================================================
+     THEME
+     ============================================================ */
+  var SUN_ICON =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round">' +
+      '<circle cx="12" cy="12" r="4.2"/>' +
+      '<path d="M12 2.6v2.1M12 19.3v2.1M2.6 12h2.1M19.3 12h2.1"/>' +
+      '<path d="M5.4 5.4l1.5 1.5M17.1 17.1l1.5 1.5M18.6 5.4l-1.5 1.5M6.9 17.1l-1.5 1.5"/>' +
+    '</svg>';
+
+  var MOON_ICON =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M20.6 14.4A8.6 8.6 0 1 1 9.6 3.4a7.1 7.1 0 0 0 11 11z"/>' +
+    '</svg>';
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    themeBtn.innerHTML = theme === "dark" ? SUN_ICON : MOON_ICON;
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", theme === "dark" ? "#0a0d13" : "#f2f5fb");
+  }
+
+  function initTheme() {
+    var saved = null;
+    try { saved = localStorage.getItem("auh-theme"); } catch (e) {}
+    if (saved === "dark" || saved === "light") {
+      applyTheme(saved);
+      return;
+    }
+    var prefersLight = window.matchMedia &&
+      window.matchMedia("(prefers-color-scheme: light)").matches;
+    applyTheme(prefersLight ? "light" : "dark");
+  }
+
+  themeBtn.addEventListener("click", function () {
+    var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    applyTheme(next);
+    try { localStorage.setItem("auh-theme", next); } catch (e) {}
+  });
+
+  /* ============================================================
+     HELPERS
+     ============================================================ */
+  function getApp(id) {
+    for (var i = 0; i < state.length; i++) {
+      if (state[i].id === id) return state[i];
+    }
+    return null;
+  }
+
+  function updateCount() {
+    var n = 0;
+    for (var i = 0; i < state.length; i++) if (state[i].updateAvailable) n++;
+    return n;
+  }
+
+  /* ============================================================
+     CARD BUILDING
+     ============================================================ */
+  function buildCard(app, index) {
+    var el = document.createElement("article");
+    el.className = "card";
+    el.setAttribute("data-id", app.id);
+    el.setAttribute("tabindex", "0");
+    el.style.animationDelay = Math.min(index * 45, 400) + "ms";
+
+    el.innerHTML =
+      '<div class="card-top">' +
+        '<div class="app-icon" style="background:' + app.color + '">' + ICONS[app.icon] + '</div>' +
+        '<div class="app-info">' +
+          '<div class="app-name">' + app.name + '</div>' +
+          '<div class="app-pkg">' + app.pkg + '</div>' +
+          '<div class="ver-row"></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="card-bottom">' +
+        '<span class="status"></span>' +
+        '<button class="btn-check" type="button">Check Update</button>' +
+      '</div>';
+
+    var refs = {
+      status: el.querySelector(".status"),
+      ver: el.querySelector(".ver-row"),
+      btn: el.querySelector(".btn-check")
+    };
+
+    refs.btn.addEventListener("click", function () {
+      checkOne(app.id, 850);
+    });
+
+    cardRefs[app.id] = refs;
+    return el;
+  }
+
+  function syncCard(app) {
+    var refs = cardRefs[app.id];
+    if (!refs) return;
+
+    /* Version row */
+    if (app.updateAvailable) {
+      refs.ver.innerHTML =
+        '<span class="tag">v' + app.installed + '</span>' +
+        '<span class="arrow">&rarr;</span>' +
+        '<span class="tag tag-new">v' + app.latest + '</span>';
+    } else {
+      refs.ver.innerHTML = '<span class="tag">v' + app.installed + '</span>';
+    }
+
+    /* Status + button */
+    if (app.mode === "checking") {
+      refs.status.className = "status s-checking";
+      refs.status.innerHTML = '<span class="spin"></span>Checking...';
+      refs.btn.disabled = true;
+      refs.btn.textContent = "Checking...";
+    } else if (app.mode === "updating") {
+      refs.status.className = "status s-checking";
+      refs.status.innerHTML = '<span class="spin"></span>Updating...';
+      refs.btn.disabled = true;
+      refs.btn.textContent = "Updating...";
+    } else {
+      if (app.updateAvailable) {
+        refs.status.className = "status s-update";
+        refs.status.innerHTML = '<span class="dot"></span>Update Available';
+      } else {
+        refs.status.className = "status s-current";
+        refs.status.innerHTML = '<span class="dot"></span>Up to date';
+      }
+      refs.btn.disabled = false;
+      refs.btn.textContent = "Check Update";
+    }
+  }
+
+  /* ============================================================
+     UPDATES PANEL
+     ============================================================ */
+  function renderUpdates() {
+    var list = state.filter(function (a) { return a.updateAvailable; });
+
+    if (list.length === 0) {
+      updateList.innerHTML = "";
+      updateList.hidden = true;
+      updatesEmpty.hidden = false;
+    } else {
+      updateList.hidden = false;
+      updatesEmpty.hidden = true;
+
+      var html = "";
+      for (var i = 0; i < list.length; i++) {
+        var a = list[i];
+        var busy = a.mode !== "idle";
+        html +=
+          '<div class="update-row" style="animation-delay:' + (i * 40) + 'ms">' +
+            '<div class="app-icon sm" style="background:' + a.color + '">' + ICONS[a.icon] + '</div>' +
+            '<div class="update-info">' +
+              '<div class="n">' + a.name + '</div>' +
+              '<div class="v">v' + a.installed + ' <em>&rarr; v' + a.latest + '</em></div>' +
+            '</div>' +
+            '<button class="btn-update" type="button" data-update="' + a.id + '"' +
+              (busy ? " disabled" : "") + '>' +
+              (a.mode === "updating" ? "Updating\u2026" : "Update") +
+            '</button>' +
+          '</div>';
+      }
+      updateList.innerHTML = html;
+
+      var buttons = updateList.querySelectorAll("[data-update]");
+      for (var j = 0; j < buttons.length; j++) {
+        buttons[j].addEventListener("click", function () {
+          applyUpdate(this.getAttribute("data-update"));
+        });
+      }
+    }
+
+    refreshStats();
+  }
+
+  /* ============================================================
+     STATS / COUNTERS
+     ============================================================ */
+  function refreshStats() {
+    var total = state.length;
+    var updates = updateCount();
+
+    appCountEl.textContent = total;
+    badgeCountEl.textContent = updates;
+    updatePill.textContent = updates;
+    updatePill.className = updates === 0 ? "count-pill zero" : "count-pill";
+
+    if (!isBusy) {
+      if (updates === 0) {
+        abText.innerHTML = "<b>All apps are up to date</b> &middot; nothing to install";
+      } else {
+        abText.innerHTML =
+          "<b>" + updates + "</b> update" + (updates === 1 ? "" : "s") + " ready to install";
+      }
+    }
+  }
+
+  /* ============================================================
+     FILTERING + SEARCH
+     ============================================================ */
+  function applyFilter() {
+    var q = searchQuery.trim().toLowerCase();
+    var shown = 0;
+
+    for (var i = 0; i < state.length; i++) {
+      var a = state[i];
+      var matchesFilter = (currentFilter === "all") || a.updateAvailable;
+      var matchesQuery = true;
+
+      if (q) {
+        matchesQuery =
+          a.name.toLowerCase().indexOf(q) !== -1 ||
+          a.pkg.toLowerCase().indexOf(q) !== -1;
+      }
+
+      var visible = matchesFilter && matchesQuery;
+      var el = grid.querySelector('.card[data-id="' + a.id + '"]');
+      if (el) el.classList.toggle("hidden", !visible);
+      if (visible) shown++;
+    }
+
+    gridCountEl.textContent = shown + (shown === 1 ? " app" : " apps");
+    gridTitleEl.textContent = currentFilter === "updates" ? "Apps with Updates" : "Installed Apps";
+    emptyState.hidden = shown !== 0;
+
+    refreshStats();
+  }
+
+  searchInput.addEventListener("input", function () {
+    searchQuery = this.value;
+    clearBtn.hidden = this.value.length === 0;
+    applyFilter();
+  });
+
+  clearBtn.addEventListener("click", function () {
+    searchInput.value = "";
+    searchQuery = "";
+    clearBtn.hidden = true;
+    searchInput.focus();
+    applyFilter();
+  });
+
+  var chips = document.querySelectorAll(".chip");
+  for (var c = 0; c < chips.length; c++) {
+    chips[c].addEventListener("click", function () {
+      for (var k = 0; k < chips.length; k++) {
+        chips[k].classList.remove("is-active");
+        chips[k].setAttribute("aria-selected", "false");
+      }
+      this.classList.add("is-active");
+      this.setAttribute("aria-selected", "true");
+      currentFilter = this.getAttribute("data-filter");
+      applyFilter();
+    });
+  }
+
+  /* ============================================================
+     CHECKING (demo simulation only)
+     ============================================================ */
+  function checkOne(id, duration) {
+    var app = getApp(id);
+    if (!app || app.mode !== "idle") return Promise.resolve();
+
+    app.mode = "checking";
+    syncCard(app);
+
+    var wait = duration || (720 + Math.random() * 620);
+
+    return new Promise(function (resolve) {
+      setTimeout(function () {
+        app.mode = "idle";
+        syncCard(app);
+        refreshStats();
+        resolve();
+      }, wait);
+    });
+  }
+
+  function applyUpdate(id) {
+    var app = getApp(id);
+    if (!app || app.mode !== "idle" || !app.updateAvailable) return;
+
+    app.mode = "updating";
+    syncCard(app);
+    renderUpdates();
+
+    setTimeout(function () {
+      app.mode = "idle";
+      app.installed = app.latest;
+      app.updateAvailable = false;
+      syncCard(app);
+      renderUpdates();
+      applyFilter();
+    }, 1500);
+  }
+
+  /* ============================================================
+     CHECK ALL APPS
+     ============================================================ */
+  var originalBtnHTML = checkAllBtn.innerHTML;
+
+  function checkAll() {
+    if (isBusy) return;
+    isBusy = true;
+
+    checkAllBtn.disabled = true;
+    checkAllBtn.innerHTML =
+      '<span class="spin" style="border-color:rgba(255,255,255,.35);border-top-color:#fff;width:16px;height:16px;"></span>' +
+      'Checking\u2026';
+
+    progress.classList.add("on");
+    progressFill.style.width = "0%";
+
+    var queue = state.slice();
+    var index = 0;
+
+    function step() {
+      if (index >= queue.length) {
+        progressFill.style.width = "100%";
+
+        var upd = updateCount();
+        if (upd === 0) {
+          abText.innerHTML = "<b>All apps checked</b> &middot; everything is up to date";
+        } else {
+          abText.innerHTML =
+            "<b>All apps checked</b> &middot; " + upd + " update" + (upd === 1 ? "" : "s") + " available";
+        }
+
+        setTimeout(function () {
+          progress.classList.remove("on");
+          progressFill.style.width = "0%";
+        }, 900);
+
+        checkAllBtn.disabled = false;
+        checkAllBtn.innerHTML = originalBtnHTML;
+        isBusy = false;
+        refreshStats();
+        return;
+      }
+
+      var app = queue[index];
+      var pct = Math.round((index / queue.length) * 100);
+      progressFill.style.width = pct + "%";
+      abText.innerHTML = "Checking <b>" + app.name + "</b>\u2026";
+
+      checkOne(app.id, 320 + Math.random() * 220).then(function () {
+        index++;
+        progressFill.style.width = Math.round((index / queue.length) * 100) + "%";
+        step();
+      });
+    }
+
+    step();
+  }
+
+  checkAllBtn.addEventListener("click", checkAll);
+
+  /* ============================================================
+     INIT
+     ============================================================ */
+  function init() {
+    initTheme();
+
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < state.length; i++) {
+      frag.appendChild(buildCard(state[i], i));
+    }
+    grid.appendChild(frag);
+
+    for (var j = 0; j < state.length; j++) {
+      syncCard(state[j]);
+    }
+
+    renderUpdates();
+    applyFilter();
+    refreshStats();
+  }
+
+  init();
+})();
+</script>
+
+</body>
+</html>

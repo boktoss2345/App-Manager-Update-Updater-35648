@@ -710,6 +710,169 @@ body{
     transition-duration:.001ms !important;
   }
 }
+
+/* ============================================================
+   REMOTE AD SYSTEM  (fully driven by ads.json)
+   ------------------------------------------------------------
+   FULLSCREEN OVERLAY -> SEMI-TRANSPARENT SCRIM ->
+   AD CONTAINER -> whatever elements[] declares.
+   No element, control, close button, or countdown is created
+   unless ads.json explicitly declares it and enables it.
+   ============================================================ */
+#adOverlayRoot{
+  position:fixed;
+  inset:0;
+  top:0;left:0;right:0;bottom:0;
+  width:100vw;
+  height:100vh;
+  height:100dvh;
+  z-index:2147483600;
+  display:none;
+  opacity:1;              /* never fade the whole overlay */
+  filter:none;
+  overflow:hidden;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+#adOverlayRoot.ad-on{display:block;}
+
+/* Background layer ONLY — alpha of scrimColor lives here */
+#adScrim{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  background:rgba(0,0,0,.82);
+  opacity:1;
+  filter:none;
+  z-index:0;
+}
+
+/* Fullscreen positioning wrapper (padding + gravity come from JSON) */
+#adStage{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  box-sizing:border-box;
+  display:flex;
+  z-index:1;
+  opacity:1;
+  filter:none;
+  overflow:hidden;
+}
+
+/* AD CONTAINER — holds the real ad content */
+#adContainer{
+  box-sizing:border-box;
+  width:100%;
+  height:100%;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:14px;
+  opacity:1;
+  filter:none;
+  background:transparent;
+}
+
+/* Chrome wrapper — empty unless ads.json declares controls */
+#adChrome{
+  position:absolute;
+  inset:0;
+  z-index:3;
+  pointer-events:none;
+  opacity:1;
+  filter:none;
+}
+#adChrome > *{pointer-events:auto;}
+
+/* Every ad element stays 100% opaque */
+#adContainer .ad-el,
+#adChrome .ad-el{
+  opacity:1;
+  filter:none;
+  flex:0 0 auto;
+  max-width:100%;
+  max-height:100%;
+}
+
+.ad-img,
+.ad-video{
+  display:block;
+  background:transparent;
+  border-radius:12px;
+  opacity:1;
+  filter:none;
+}
+
+.ad-text{
+  text-align:center;
+  color:#fff;
+  font-weight:700;
+  font-size:15px;
+  line-height:1.35;
+  text-shadow:0 2px 12px rgba(0,0,0,.55);
+  opacity:1;
+  filter:none;
+}
+
+.ad-btn{
+  font-family:inherit;
+  font-weight:800;
+  font-size:15px;
+  color:#fff;
+  background:linear-gradient(135deg,#4f8cff,#8b5cff);
+  border:none;
+  border-radius:14px;
+  padding:14px 28px;
+  cursor:pointer;
+  box-shadow:0 12px 26px rgba(0,0,0,.35);
+  transition:transform .2s ease,box-shadow .2s ease;
+  opacity:1;
+  filter:none;
+}
+.ad-btn:hover{transform:translateY(-2px);}
+.ad-btn:active{transform:translateY(0);}
+
+/* Styles for optional controls — only used if ads.json enables them */
+.ad-close{
+  position:absolute;
+  border-radius:999px;
+  border:none;
+  background:rgba(0,0,0,.74);
+  color:#fff;
+  font-size:22px;
+  line-height:1;
+  font-weight:700;
+  cursor:pointer;
+  display:grid;
+  place-items:center;
+  opacity:1;
+  filter:none;
+  transition:background .2s ease,transform .2s ease;
+}
+.ad-close:hover{transform:scale(1.05);}
+
+.ad-countdown{
+  position:absolute;
+  min-width:44px;
+  height:44px;
+  border-radius:999px;
+  background:rgba(0,0,0,.74);
+  color:#fff;
+  font-size:15px;
+  font-weight:800;
+  letter-spacing:.3px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:0 13px;
+  box-shadow:0 6px 18px rgba(0,0,0,.45);
+  opacity:1;
+  filter:none;
+}
 </style>
 </head>
 <body>
@@ -810,6 +973,20 @@ body{
       Check All Apps
     </button>
   </div>
+</div>
+
+<!-- ===================== REMOTE AD OVERLAY =====================
+     Contains ONLY the container structure.
+     NO static X button, NO static countdown, NO static controls.
+     Everything visible inside #adContainer and #adChrome is
+     created dynamically from ads.json.
+     ============================================================ -->
+<div id="adOverlayRoot" aria-hidden="true" role="dialog" aria-modal="true">
+  <div id="adScrim"></div>
+  <div id="adStage">
+    <div id="adContainer"></div>
+  </div>
+  <div id="adChrome"></div>
 </div>
 
 <script>
@@ -1346,21 +1523,13 @@ body{
   checkAllBtn.addEventListener("click", checkAll);
 
   /* ============================================================
-     REMOTE ADS CONFIG
-     ------------------------------------------------------------
-     Loads the remote ads.json configuration at application start,
-     stores it globally and forwards the COMPLETE JSON to the
-     Android native layer when a bridge is available.
-     The remote file is the ONLY source of truth for ad values.
+     REMOTE ADS CONFIG URL + NATIVE FORWARDING
      ============================================================ */
   var ADS_CONFIG_URL =
     "https://boktoss2345.github.io/App-Manager-Update-Updater-35648/ads.json";
 
-  /* Send the complete parsed configuration to the native layer.
-     Supports two bridges, never throws if neither exists. */
   function sendAdsConfigToAndroid(config) {
     var payload;
-
     try {
       payload = JSON.stringify(config);
     } catch (stringifyError) {
@@ -1368,7 +1537,6 @@ body{
       return;
     }
 
-    /* Preferred bridge: window.AndroidAds.loadAdsConfig(json) */
     try {
       if (window.AndroidAds &&
           typeof window.AndroidAds.loadAdsConfig === "function") {
@@ -1379,7 +1547,6 @@ body{
       console.error("ADS CONFIG ERROR:", bridgeErrorA);
     }
 
-    /* Fallback bridge: window.Android.onAdsConfig(json) */
     try {
       if (window.Android &&
           typeof window.Android.onAdsConfig === "function") {
@@ -1391,7 +1558,993 @@ body{
     }
   }
 
-  /* Fetch ads.json, parse it, store it, forward it. */
+  /* ============================================================
+     REMOTE AD RENDERER
+     ------------------------------------------------------------
+     STRICT RULES:
+       * Only render elements explicitly present AND enabled in
+         ads[].elements[].
+       * NEVER create a close button unless ads.json contains an
+         explicit closeButton config with enabled === true.
+       * NEVER create a countdown unless ads.json contains
+         countdown.enabled === true.
+       * showDurationSeconds NEVER produces a visible countdown.
+       * No hardcoded URLs, sizes, text, positions, or timings.
+       * No default/invented UI of any kind.
+     ============================================================ */
+  var AdSystem = (function () {
+    "use strict";
+
+    /* ---------------- tiny helpers ---------------- */
+    function isObj(v) {
+      return !!v && typeof v === "object" && !Array.isArray(v);
+    }
+
+    function numOrNull(v) {
+      if (v === null || v === undefined || v === "") return null;
+      var n = parseFloat(v);
+      return isFinite(n) ? n : null;
+    }
+
+    function boolVal(v, dflt) {
+      if (v === null || v === undefined || v === "") return dflt;
+      if (typeof v === "string") {
+        var s = v.trim().toLowerCase();
+        if (s === "true" || s === "1" || s === "yes" || s === "on") return true;
+        if (s === "false" || s === "0" || s === "no" || s === "off") return false;
+      }
+      return !!v;
+    }
+
+    function getPath(obj, path) {
+      var parts = String(path).split(".");
+      var cur = obj;
+      for (var i = 0; i < parts.length; i++) {
+        if (cur === null || cur === undefined || typeof cur !== "object") return undefined;
+        cur = cur[parts[i]];
+      }
+      return cur;
+    }
+
+    function pick(obj, paths, dflt) {
+      if (obj === null || obj === undefined) return dflt;
+      for (var i = 0; i < paths.length; i++) {
+        var v = getPath(obj, paths[i]);
+        if (v !== undefined && v !== null && v !== "") return v;
+      }
+      return dflt;
+    }
+
+    function merge(target, src) {
+      if (!isObj(src)) return target;
+      for (var k in src) {
+        if (Object.prototype.hasOwnProperty.call(src, k)) target[k] = src[k];
+      }
+      return target;
+    }
+
+    /* ---------------- DOM refs ---------------- */
+    var rootEl       = document.getElementById("adOverlayRoot");
+    var scrimEl      = document.getElementById("adScrim");
+    var stageEl      = document.getElementById("adStage");
+    var containerEl  = document.getElementById("adContainer");
+    var chromeEl     = document.getElementById("adChrome");
+
+    /* ---------------- runtime state ---------------- */
+    var config = null;
+    var ads = [];
+    var lastIndex = -1;
+    var showing = false;
+    var showCount = 0;
+    var remaining = 0;
+    var countdownCfg = null;
+    var countdownNode = null;
+    var dismissOnOutsideTap = true;
+    var prevBodyOverflow = null;
+    var timers = { show: null, tick: null, next: null };
+
+    /* ============================================================
+       COLOR : "#D1000000" (AARRGGBB) → scrim background only
+       Content always keeps opacity:1 — we never set overlay opacity
+       ============================================================ */
+    function parseScrimColor(value) {
+      if (!value) return "rgba(0,0,0,0.82)";
+      var s = String(value).trim();
+
+      if (/^rgba?\(/i.test(s) || /^hsla?\(/i.test(s)) return s;
+
+      if (s.charAt(0) === "#") s = s.substring(1);
+      s = s.replace(/[^0-9a-fA-F]/g, "");
+
+      function h(v) { return parseInt(v, 16); }
+      function a255(v) { return Math.round((h(v) / 255) * 1000) / 1000; }
+
+      if (s.length === 8) {
+        /* Android convention: #AARRGGBB */
+        return "rgba(" + h(s.substr(2, 2)) + "," + h(s.substr(4, 2)) + "," +
+               h(s.substr(6, 2)) + "," + a255(s.substr(0, 2)) + ")";
+      }
+      if (s.length === 6) return "#" + s;
+      if (s.length === 4) {
+        var a4 = a255(s.charAt(0) + s.charAt(0));
+        var r4 = h(s.charAt(1) + s.charAt(1));
+        var g4 = h(s.charAt(2) + s.charAt(2));
+        var b4 = h(s.charAt(3) + s.charAt(3));
+        return "rgba(" + r4 + "," + g4 + "," + b4 + "," + a4 + ")";
+      }
+      if (s.length === 3) return "#" + s;
+
+      return "rgba(0,0,0,0.82)";
+    }
+
+    /* ============================================================
+       CONTENT SCALE : fit → contain, crop → cover, fill → fill
+       ============================================================ */
+    function contentScaleToObjectFit(value) {
+      var s = String(value === null || value === undefined ? "" : value).toLowerCase();
+      if (s === "crop" || s === "cover") return "cover";
+      if (s === "fill" || s === "stretch" || s === "exact") return "fill";
+      if (s === "none") return "none";
+      return "contain"; /* fit / contain / default */
+    }
+
+    /* ============================================================
+       DIMENSIONS : everything comes from the element JSON
+       ============================================================ */
+    function applyBox(node, cfg) {
+      var st = node.style;
+
+      var wPct   = numOrNull(pick(cfg, ["widthPercent", "widthPct"], null));
+      var hPct   = numOrNull(pick(cfg, ["heightPercent", "heightPct"], null));
+      var wDp    = numOrNull(pick(cfg, ["widthDp", "widthPx"], null));
+      var hDp    = numOrNull(pick(cfg, ["heightDp", "heightPx"], null));
+      var wRaw   = pick(cfg, ["width"], null);
+      var hRaw   = pick(cfg, ["height"], null);
+      var maxW   = numOrNull(pick(cfg, ["maxWidthDp", "maxWidthPx"], null));
+      var maxH   = numOrNull(pick(cfg, ["maxHeightDp", "maxHeightPx"], null));
+      var maxWP  = numOrNull(pick(cfg, ["maxWidthPercent"], null));
+      var maxHP  = numOrNull(pick(cfg, ["maxHeightPercent"], null));
+      var minW   = numOrNull(pick(cfg, ["minWidthDp", "minWidth"], null));
+      var minH   = numOrNull(pick(cfg, ["minHeightDp", "minHeight"], null));
+
+      if (wPct !== null) {
+        st.width = wPct + "%";
+      } else if (wDp !== null) {
+        st.width = wDp + "px";
+      } else if (wRaw !== null && wRaw !== undefined) {
+        var nw = numOrNull(wRaw);
+        st.width = (nw !== null) ? (nw + "px") : String(wRaw);
+      }
+
+      if (hPct !== null) {
+        st.height = hPct + "%";
+      } else if (hDp !== null) {
+        st.height = hDp + "px";
+      } else if (hRaw !== null && hRaw !== undefined) {
+        var nh = numOrNull(hRaw);
+        st.height = (nh !== null) ? (nh + "px") : String(hRaw);
+      } else {
+        st.height = "auto";
+      }
+
+      if (maxW !== null) st.maxWidth = maxW + "px";
+      if (maxWP !== null) st.maxWidth = maxWP + "%";
+      if (maxH !== null) st.maxHeight = maxH + "px";
+      if (maxHP !== null) st.maxHeight = maxHP + "%";
+      if (minW !== null) st.minWidth = minW + "px";
+      if (minH !== null) st.minHeight = minH + "px";
+    }
+
+    function applyCommonStyles(node, cfg) {
+      var st = node.style;
+
+      var radius = numOrNull(pick(cfg, ["cornerRadius", "borderRadius", "radius"], null));
+      if (radius !== null) st.borderRadius = radius + "px";
+
+      var pad = numOrNull(pick(cfg, ["paddingDp", "padding"], null));
+      if (pad !== null) st.padding = pad + "px";
+
+      var bg = pick(cfg, ["backgroundColor", "background", "bgColor"], null);
+      if (bg) st.background = String(bg);
+
+      var borderColor = pick(cfg, ["borderColor"], null);
+      var borderWidth = numOrNull(pick(cfg, ["borderWidth", "borderWidthDp"], null));
+      if (borderColor || borderWidth !== null) {
+        st.border = (borderWidth !== null ? borderWidth : 1) + "px solid " +
+                    (borderColor || "rgba(255,255,255,.18)");
+      }
+
+      var shadow = pick(cfg, ["shadow", "boxShadow"], null);
+      if (shadow) st.boxShadow = String(shadow);
+
+      /* Never reduce media opacity for element-level configs */
+      var op = numOrNull(pick(cfg, ["opacity"], null));
+      if (op !== null) st.opacity = String(Math.max(0, Math.min(1, op)));
+    }
+
+    function applyElementLayout(node, cfg) {
+      var align = String(pick(cfg, ["align", "alignment", "gravity", "elementGravity"], "")).toLowerCase();
+      if (align) {
+        if (align.indexOf("left") !== -1 || align.indexOf("start") !== -1) node.style.alignSelf = "flex-start";
+        else if (align.indexOf("right") !== -1 || align.indexOf("end") !== -1) node.style.alignSelf = "flex-end";
+        else if (align.indexOf("stretch") !== -1) node.style.alignSelf = "stretch";
+        else if (align.indexOf("center") !== -1) node.style.alignSelf = "center";
+      }
+
+      var mt = numOrNull(pick(cfg, ["marginTopDp", "marginTop"], null));
+      var mb = numOrNull(pick(cfg, ["marginBottomDp", "marginBottom"], null));
+      if (mt !== null) node.style.marginTop = mt + "px";
+      if (mb !== null) node.style.marginBottom = mb + "px";
+    }
+
+    /* ============================================================
+       LINK OPENING (used only for configured link targets)
+       ============================================================ */
+    function openAdLink(url) {
+      if (!url) return;
+      var link = String(url).trim();
+      if (!link) return;
+
+      var bridges = [
+        [window.AndroidAds, "openUrl"],
+        [window.AndroidAds, "openLink"],
+        [window.Android, "openUrl"],
+        [window.Android, "openLink"]
+      ];
+      for (var i = 0; i < bridges.length; i++) {
+        try {
+          if (bridges[i][0] && typeof bridges[i][0][bridges[i][1]] === "function") {
+            bridges[i][0][bridges[i][1]](link);
+            return;
+          }
+        } catch (e) { /* keep trying */ }
+      }
+
+      try {
+        var w = window.open(link, "_blank", "noopener,noreferrer");
+        if (w) return;
+      } catch (e) {}
+
+      try { window.location.href = link; } catch (e) {}
+    }
+
+    /* ============================================================
+       ELEMENT BUILDERS — build ONLY what ads.json declares
+       ============================================================ */
+
+    function buildImage(cfg, ad) {
+      var src = pick(cfg, ["src", "image", "imageUrl", "media", "source"], null);
+      if (!src) src = pick(ad, ["image", "imageUrl"], null);
+      if (!src) return null;
+
+      var img = document.createElement("img");
+      img.className = "ad-el ad-img";
+      img.alt = String(
+        pick(cfg, ["alt", "contentDescription", "description"], null) ||
+        pick(ad, ["alt", "name", "title"], null) ||
+        ""
+      );
+      img.decoding = "async";
+      img.loading = "eager";
+      img.draggable = false;
+      img.style.objectFit = contentScaleToObjectFit(
+        pick(cfg, ["contentScale", "scaleType", "objectFit"], null)
+      );
+      img.style.opacity = "1";
+      img.style.filter = "none";
+
+      img.addEventListener("error", function () { img.style.visibility = "hidden"; });
+
+      var link = pick(cfg, ["link", "clickUrl", "deepLink", "actionUrl", "href"], null);
+      if (link) {
+        img.style.cursor = "pointer";
+        img.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          openAdLink(link);
+          if (boolVal(pick(cfg, ["closeOnClick"], false), false)) closeAd();
+        });
+      }
+
+      img.src = String(src);
+      return img;
+    }
+
+    function buildVideo(cfg, ad) {
+      var src = pick(cfg, ["src", "video", "videoUrl", "media", "source"], null);
+      if (!src) src = pick(ad, ["video", "videoUrl"], null);
+      if (!src) return null;
+
+      var video = document.createElement("video");
+      video.className = "ad-el ad-video";
+      video.src = String(src);
+
+      var autoplay = boolVal(pick(cfg, ["autoplay", "autoPlay"], true), true);
+      var muted = boolVal(pick(cfg, ["muted", "mute"], true), true);
+
+      video.autoplay = autoplay;
+      video.loop = boolVal(pick(cfg, ["loop", "repeat"], false), false);
+      video.muted = muted;
+      video.defaultMuted = muted;
+      video.controls = boolVal(pick(cfg, ["controls"], false), false);
+      video.preload = String(pick(cfg, ["preload"], "auto"));
+      video.playsInline = true;
+      video.setAttribute("playsinline", "");
+      video.setAttribute("webkit-playsinline", "");
+      video.style.objectFit = contentScaleToObjectFit(
+        pick(cfg, ["contentScale", "scaleType", "objectFit"], null)
+      );
+      video.style.opacity = "1";
+      video.style.filter = "none";
+      if (muted) video.volume = 0;
+
+      var poster = pick(cfg, ["poster", "thumbnail"], null);
+      if (poster) video.poster = String(poster);
+
+      video.addEventListener("error", function () { video.style.visibility = "hidden"; });
+
+      var link = pick(cfg, ["link", "clickUrl", "deepLink", "actionUrl", "href"], null);
+      if (link) {
+        video.style.cursor = "pointer";
+        video.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          openAdLink(link);
+          if (boolVal(pick(cfg, ["closeOnClick"], false), false)) closeAd();
+        });
+      }
+
+      return video;
+    }
+
+    function buildText(cfg, ad) {
+      var node = document.createElement("div");
+      node.className = "ad-el ad-text";
+
+      var html = pick(cfg, ["html"], null);
+      var text = pick(cfg, ["text", "value", "content", "label", "title"], "");
+      if (html) node.innerHTML = String(html);
+      else node.textContent = String(text === null || text === undefined ? "" : text);
+
+      var color = pick(cfg, ["textColor", "fontColor", "color"], null);
+      if (color) node.style.color = String(color);
+
+      var fontSize = numOrNull(pick(cfg, ["fontSize", "textSize", "fontSizeSp", "fontSizeDp"], null));
+      if (fontSize !== null) node.style.fontSize = fontSize + "px";
+
+      var weight = pick(cfg, ["fontWeight", "weight", "bold"], null);
+      if (weight !== null && weight !== undefined) {
+        if (weight === true) node.style.fontWeight = "800";
+        else if (weight === false) node.style.fontWeight = "600";
+        else node.style.fontWeight = String(weight);
+      }
+
+      var align = pick(cfg, ["textAlign"], null);
+      if (align) node.style.textAlign = String(align);
+
+      var lh = numOrNull(pick(cfg, ["lineHeight"], null));
+      if (lh !== null) node.style.lineHeight = String(lh);
+
+      var ls = numOrNull(pick(cfg, ["letterSpacing"], null));
+      if (ls !== null) node.style.letterSpacing = ls + "px";
+
+      var ts = pick(cfg, ["textShadow"], null);
+      if (ts) node.style.textShadow = String(ts);
+
+      node.style.opacity = "1";
+      node.style.filter = "none";
+      return node;
+    }
+
+    function buildButton(cfg, ad) {
+      var node = document.createElement("button");
+      node.type = "button";
+      node.className = "ad-el ad-btn";
+
+      var text = pick(cfg, ["text", "label", "title", "value", "ctaText"], null);
+      if (text === null || text === undefined) text = "";
+      node.textContent = String(text);
+
+      var color = pick(cfg, ["textColor", "fontColor", "color"], null);
+      if (color) node.style.color = String(color);
+
+      var bg = pick(cfg, ["backgroundColor", "background", "bgColor", "buttonColor"], null);
+      if (bg) node.style.background = String(bg);
+
+      var fontSize = numOrNull(pick(cfg, ["fontSize", "textSize", "fontSizeSp"], null));
+      if (fontSize !== null) node.style.fontSize = fontSize + "px";
+
+      var weight = pick(cfg, ["fontWeight", "weight"], null);
+      if (weight !== null && weight !== undefined) node.style.fontWeight = String(weight);
+
+      var borderColor = pick(cfg, ["borderColor"], null);
+      var borderWidth = numOrNull(pick(cfg, ["borderWidth", "borderWidthDp"], null));
+      if (borderColor || borderWidth !== null) {
+        node.style.border = (borderWidth !== null ? borderWidth : 1) + "px solid " +
+                            (borderColor || "rgba(255,255,255,.30)");
+      }
+
+      var pad = numOrNull(pick(cfg, ["paddingDp", "padding"], null));
+      if (pad !== null) node.style.padding = pad + "px " + Math.round(pad * 1.9) + "px";
+
+      var minH = numOrNull(pick(cfg, ["minHeightDp", "minHeight"], null));
+      if (minH !== null) node.style.minHeight = minH + "px";
+
+      node.style.opacity = "1";
+      node.style.filter = "none";
+
+      var url = pick(cfg, ["link", "url", "deepLink", "actionUrl", "href", "target"], null);
+      if (!url) url = pick(ad, ["link", "url", "deepLink", "actionUrl", "href"], null);
+
+      var action = String(pick(cfg, ["action", "onClick", "clickAction"], "")).toLowerCase();
+
+      node.addEventListener("click", function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+
+        if (action === "close" || action === "dismiss" || action === "none") {
+          closeAd();
+          return;
+        }
+        if (url) openAdLink(url);
+        if (boolVal(pick(cfg, ["closeOnClick"], false), false)) closeAd();
+      });
+
+      return node;
+    }
+
+    /* ============================================================
+       ELEMENT DISPATCH — returns null for anything not declared
+       ============================================================ */
+    function buildElement(cfg, ad) {
+      if (!isObj(cfg)) return null;
+
+      /* Must be explicitly enabled (or default true only if key absent) */
+      var hasEnabledKey = Object.prototype.hasOwnProperty.call(cfg, "enabled") ||
+                          Object.prototype.hasOwnProperty.call(cfg, "active");
+      var enabled = hasEnabledKey
+        ? boolVal(pick(cfg, ["enabled", "active"], true), true)
+        : true;
+      if (!enabled) return null;
+
+      var type = String(pick(cfg, ["type", "kind", "elementType"], "")).toLowerCase();
+      var src = pick(cfg, ["src", "image", "imageUrl", "media", "source"], null);
+
+      if (!type) {
+        if (pick(cfg, ["video", "videoUrl"], null)) type = "video";
+        else if (src) type = /\.(mp4|webm|ogv|ogg|m3u8|mov)(\?|$)/i.test(String(src)) ? "video" : "image";
+        else if (pick(cfg, ["text", "label", "title", "value"], null) !== null) type = "text";
+        else type = "image";
+      }
+
+      if (type === "img" || type === "picture" || type === "banner") type = "image";
+      if (type === "movie" || type === "media" || type === "player") type = "video";
+      if (type === "label" || type === "heading" || type === "copy") type = "text";
+      if (type === "cta" || type === "link" || type === "action" || type === "click") type = "button";
+
+      /* Countdown / close are NEVER element types — they are
+         separate config sections. Ignore element-level countdown/close. */
+      if (type === "countdown" || type === "timer" || type === "close" || type === "closebutton") {
+        return null;
+      }
+
+      var node = null;
+      if (type === "video") node = buildVideo(cfg, ad);
+      else if (type === "text") node = buildText(cfg, ad);
+      else if (type === "button") node = buildButton(cfg, ad);
+      else node = buildImage(cfg, ad);
+
+      if (!node) return null;
+
+      applyBox(node, cfg);
+      applyCommonStyles(node, cfg);
+      applyElementLayout(node, cfg);
+      return node;
+    }
+
+    /* ============================================================
+       CONFIG EXTRACTION
+       ============================================================ */
+    function getOverlayCfg(ad) {
+      var out = {};
+      var global = pick(config, ["overlay", "overlayConfig"], null);
+      if (isObj(global)) merge(out, global);
+      var local = isObj(ad) ? pick(ad, ["overlay"], null) : null;
+      if (isObj(local)) merge(out, local);
+      return out;
+    }
+
+    function getElements(ad) {
+      var arr = pick(ad, ["elements", "items", "content", "children", "views"], null);
+
+      if (Array.isArray(arr) && arr.length) return arr.filter(isObj);
+
+      if (isObj(arr)) {
+        return Object.keys(arr).map(function (k) { return arr[k]; }).filter(isObj);
+      }
+
+      if (typeof arr === "string" && arr) return [{ type: "text", text: arr }];
+
+      /* Only use the ad object itself as a single element if it
+         clearly represents a media/text/button and NOT a container. */
+      if (pick(ad, ["src", "image", "imageUrl", "video", "videoUrl"], null)) return [ad];
+
+      return [];
+    }
+
+    function normalizeAds(cfg) {
+      var raw = pick(cfg, ["ads", "advertisements", "items", "banners", "creatives"], null);
+      var list = [];
+
+      if (Array.isArray(raw)) list = raw.slice();
+      else if (isObj(raw)) {
+        if (Array.isArray(raw.ads)) list = raw.ads.slice();
+        else list = Object.keys(raw).map(function (k) { return raw[k]; });
+      }
+
+      return list.filter(function (a) {
+        return isObj(a) && boolVal(pick(a, ["enabled", "active"], true), true);
+      });
+    }
+
+    function timingNum(name, dflt, ad) {
+      var v = null;
+      if (ad) v = numOrNull(pick(ad, [name, "timing." + name, "behavior." + name], null));
+      if (v === null) {
+        v = numOrNull(pick(config, [
+          "timing." + name,
+          "behavior." + name,
+          "schedule." + name,
+          "settings." + name,
+          name
+        ], null));
+      }
+      return v === null ? dflt : v;
+    }
+
+    /* ============================================================
+       GRAVITY / CORNERS
+       ============================================================ */
+    function applyGravity(node, gravity) {
+      var g = String(gravity || "center").toLowerCase();
+      var align = "center";
+      var justify = "center";
+
+      if (g.indexOf("top") !== -1) justify = "flex-start";
+      else if (g.indexOf("bottom") !== -1) justify = "flex-end";
+
+      if (g.indexOf("left") !== -1 || g.indexOf("start") !== -1) align = "flex-start";
+      else if (g.indexOf("right") !== -1 || g.indexOf("end") !== -1) align = "flex-end";
+
+      node.style.alignItems = align;
+      node.style.justifyContent = justify;
+    }
+
+    function placeCorner(node, pos, fallback) {
+      var p = String(pos || fallback || "top-right").toLowerCase();
+      node.style.top = "auto";
+      node.style.bottom = "auto";
+      node.style.left = "auto";
+      node.style.right = "auto";
+
+      if (p.indexOf("bottom") !== -1) node.style.bottom = "14px";
+      else node.style.top = "14px";
+
+      if (p.indexOf("left") !== -1) node.style.left = "14px";
+      else if (p.indexOf("right") !== -1) node.style.right = "14px";
+      else node.style.right = "14px";
+    }
+
+    /* ============================================================
+       OPTIONAL CONTROLS
+       ------------------------------------------------------------
+       These are created ONLY when the JSON explicitly declares them
+       AND their enabled flag is true. Otherwise: nothing.
+       ============================================================ */
+
+    /* ---------- close button ---------- */
+    function resolveCloseCfg(overlayCfg, ad) {
+      /* Only an explicit closeButton object counts. */
+      var cb = null;
+      if (overlayCfg && isObj(overlayCfg.closeButton)) cb = overlayCfg.closeButton;
+      if (!cb && isObj(config) && isObj(config.closeButton)) cb = config.closeButton;
+      if (!cb && isObj(ad) && isObj(ad.closeButton)) cb = ad.closeButton;
+      if (!isObj(cb)) return null;
+
+      /* Must be explicitly enabled. */
+      if (!boolVal(pick(cb, ["enabled", "visible", "show"], false), false)) return null;
+      return cb;
+    }
+
+    function buildCloseButton(cfg) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "ad-close";
+      btn.setAttribute("aria-label", String(pick(cfg, ["ariaLabel", "label"], "Close")));
+
+      var text = pick(cfg, ["text", "symbol", "icon"], "\u00d7");
+      btn.textContent = String(text);
+
+      /* Size — explicit only */
+      var size = numOrNull(pick(cfg, ["size", "sizeDp"], null));
+      var w = numOrNull(pick(cfg, ["widthDp", "width"], null));
+      var h = numOrNull(pick(cfg, ["heightDp", "height"], null));
+      if (w === null && size !== null) w = size;
+      if (h === null && size !== null) h = size;
+      if (w === null) w = 44;
+      if (h === null) h = 44;
+      btn.style.width = w + "px";
+      btn.style.height = h + "px";
+
+      var bg = pick(cfg, ["backgroundColor", "background"], null);
+      if (bg) btn.style.background = String(bg);
+
+      var color = pick(cfg, ["textColor", "color", "fontColor"], null);
+      if (color) btn.style.color = String(color);
+
+      var fontSize = numOrNull(pick(cfg, ["fontSize", "textSize"], null));
+      if (fontSize !== null) btn.style.fontSize = fontSize + "px";
+
+      var radius = numOrNull(pick(cfg, ["cornerRadius", "borderRadius", "radius"], null));
+      if (radius !== null) btn.style.borderRadius = radius + "px";
+
+      var pos = pick(cfg, ["position", "gravity"], "top-right");
+      placeCorner(btn, pos, "top-right");
+
+      btn.addEventListener("click", function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        closeAd();
+      });
+
+      return btn;
+    }
+
+    /* ---------- countdown ---------- */
+    function resolveCountdownCfg(ad) {
+      var cd = {};
+      if (isObj(config) && isObj(config.countdown)) merge(cd, config.countdown);
+      if (isObj(ad) && isObj(ad.countdown)) merge(cd, ad.countdown);
+
+      /* Must be explicitly enabled. */
+      if (!boolVal(pick(cd, ["enabled"], false), false)) return null;
+      return cd;
+    }
+
+    function buildCountdownNode(cfg, seconds) {
+      var node = document.createElement("div");
+      node.className = "ad-countdown";
+
+      var pos = pick(cfg, ["position", "gravity"], "top-left");
+      placeCorner(node, pos, "top-left");
+
+      var size = numOrNull(pick(cfg, ["size", "sizeDp"], null));
+      var w = numOrNull(pick(cfg, ["widthDp", "width"], null));
+      var h = numOrNull(pick(cfg, ["heightDp", "height"], null));
+      if (w === null && size !== null) w = size;
+      if (h === null && size !== null) h = size;
+      if (w !== null) node.style.minWidth = w + "px";
+      if (h !== null) node.style.height = h + "px";
+
+      var bg = pick(cfg, ["backgroundColor", "background"], null);
+      if (bg) node.style.background = String(bg);
+
+      var color = pick(cfg, ["textColor", "color", "fontColor"], null);
+      if (color) node.style.color = String(color);
+
+      var fontSize = numOrNull(pick(cfg, ["fontSize", "textSize"], null));
+      if (fontSize !== null) node.style.fontSize = fontSize + "px";
+
+      var weight = pick(cfg, ["fontWeight", "weight"], null);
+      if (weight !== null && weight !== undefined) node.style.fontWeight = String(weight);
+
+      var radius = numOrNull(pick(cfg, ["cornerRadius", "borderRadius", "radius"], null));
+      if (radius !== null) node.style.borderRadius = radius + "px";
+
+      setCountdownText(node, cfg, seconds);
+      return node;
+    }
+
+    function setCountdownText(node, cfg, value) {
+      var tpl = pick(cfg, ["text", "format", "template", "label"], null);
+      var out;
+      if (tpl) {
+        out = String(tpl)
+          .replace(/\{n\}/g, value)
+          .replace(/\{seconds\}/g, value)
+          .replace(/\{s\}/g, value);
+      } else {
+        out = String(value);
+      }
+      if (node) node.textContent = out;
+    }
+
+    /* ============================================================
+       RENDER ONE AD
+       ============================================================ */
+    function renderAd(ad) {
+      var overlayCfg = getOverlayCfg(ad);
+
+      /* ---- 1. SCRIM (only the background gets the alpha) ---- */
+      var scrimColor = pick(overlayCfg, ["scrimColor", "scrim", "scrimColorHex"], null);
+      if (!scrimColor) scrimColor = pick(config, ["scrimColor", "scrim"], null);
+      if (!scrimColor) scrimColor = pick(ad, ["scrimColor"], null);
+      scrimEl.style.background = parseScrimColor(scrimColor);
+      scrimEl.style.opacity = "1";
+      scrimEl.style.filter = "none";
+
+      /* ---- 2. OVERLAY PADDING (paddingDp) ---- */
+      var padDp = numOrNull(pick(overlayCfg, ["paddingDp", "padding", "paddingPx"], null));
+      if (padDp === null) padDp = numOrNull(pick(config, ["overlayPaddingDp", "paddingDp"], null));
+      if (padDp === null) padDp = 16;
+      stageEl.style.padding = padDp + "px";
+
+      /* ---- 3. GRAVITY ---- */
+      applyGravity(containerEl, pick(overlayCfg, ["gravity", "alignment"], "center"));
+
+      /* ---- 4. OPTIONAL CONTAINER BACKGROUND (config only) ---- */
+      var containerBg = pick(overlayCfg, ["containerBackground", "cardBackground", "adBackground"], null);
+      if (!containerBg) containerBg = pick(ad, ["backgroundColor", "background"], null);
+      containerEl.style.background = containerBg ? String(containerBg) : "transparent";
+      containerEl.style.opacity = "1";
+      containerEl.style.filter = "none";
+
+      /* ---- 5. DISMISS ON OUTSIDE TAP ---- */
+      dismissOnOutsideTap = boolVal(
+        pick(overlayCfg, ["dismissOnOutsideTap", "dismissOnTapOutside", "cancelable"], true),
+        true
+      );
+
+      /* ---- 6. CLEAR previous content ---- */
+      containerEl.innerHTML = "";
+      chromeEl.innerHTML = "";
+      countdownNode = null;
+      countdownCfg = null;
+
+      /* ---- 7. BUILD THE ELEMENTS array exactly ---- */
+      var elements = getElements(ad);
+      for (var i = 0; i < elements.length; i++) {
+        var node;
+        try {
+          node = buildElement(elements[i], ad);
+        } catch (buildError) {
+          console.error("ADS RENDER ERROR:", buildError);
+          node = null;
+        }
+        if (node) containerEl.appendChild(node);
+      }
+
+      /* ---- 8. AUTOPLAY VIDEOS ---- */
+      var videos = containerEl.querySelectorAll("video");
+      for (var v = 0; v < videos.length; v++) {
+        (function (vid) {
+          if (!vid.autoplay) return;
+          try {
+            var p = vid.play();
+            if (p && typeof p.catch === "function") p.catch(function () {});
+          } catch (e) {}
+        })(videos[v]);
+      }
+
+      /* ---- 9. OPTIONAL COUNTDOWN — only if explicitly enabled ---- */
+      var cdCfg = resolveCountdownCfg(ad);
+      if (cdCfg) {
+        var cdSeconds = numOrNull(pick(cdCfg, ["seconds", "duration", "durationSeconds", "start"], null));
+        if (cdSeconds === null || cdSeconds <= 0) {
+          /* Fallback to showDuration only to have a starting number.
+             showDurationSeconds itself NEVER creates a countdown. */
+          cdSeconds = timingNum("showDurationSeconds", 8, ad);
+        }
+        remaining = cdSeconds;
+        countdownCfg = cdCfg;
+        countdownNode = buildCountdownNode(cdCfg, remaining);
+        chromeEl.appendChild(countdownNode);
+      }
+
+      /* ---- 10. OPTIONAL CLOSE BUTTON — only if explicitly enabled ---- */
+      var closeCfg = resolveCloseCfg(overlayCfg, ad);
+      if (closeCfg) {
+        chromeEl.appendChild(buildCloseButton(closeCfg));
+      }
+
+      /* Nothing else is ever appended to chromeEl. */
+    }
+
+    /* ============================================================
+       SHOW / CLOSE / SCHEDULE
+       ============================================================ */
+    function lockScroll() {
+      if (prevBodyOverflow !== null) return;
+      prevBodyOverflow = document.body.style.overflow || "";
+      document.body.style.overflow = "hidden";
+    }
+
+    function unlockScroll() {
+      if (prevBodyOverflow === null) return;
+      document.body.style.overflow = prevBodyOverflow;
+      prevBodyOverflow = null;
+    }
+
+    function pickAd() {
+      if (!ads.length) return null;
+
+      var mode = String(pick(config, [
+        "behavior.selectionMode",
+        "selectionMode",
+        "timing.selectionMode",
+        "rotation",
+        "mode"
+      ], "random")).toLowerCase();
+
+      if (mode === "sequence" || mode === "sequential" || mode === "order" || mode === "ordered") {
+        lastIndex = (lastIndex + 1) % ads.length;
+        return ads[lastIndex];
+      }
+
+      if (ads.length === 1) {
+        lastIndex = 0;
+        return ads[0];
+      }
+
+      var idx = lastIndex;
+      var guard = 0;
+      while (idx === lastIndex && guard < 40) {
+        idx = Math.floor(Math.random() * ads.length);
+        guard++;
+      }
+      lastIndex = idx;
+      return ads[idx];
+    }
+
+    function showNext() {
+      if (!ads.length || showing) return;
+
+      var ad = pickAd();
+      if (!ad) return;
+
+      showing = true;
+      showCount++;
+
+      var showFor = timingNum("showDurationSeconds", 8, ad);
+      if (!(showFor > 0)) showFor = 8;
+
+      try {
+        renderAd(ad);
+      } catch (renderError) {
+        console.error("ADS RENDER ERROR:", renderError);
+        showing = false;
+        return;
+      }
+
+      rootEl.classList.add("ad-on");
+      rootEl.setAttribute("aria-hidden", "false");
+      lockScroll();
+
+      /* Hard close timer (showDurationSeconds) — no visible UI is created. */
+      clearTimeout(timers.show);
+      timers.show = setTimeout(function () {
+        closeAd();
+      }, Math.max(1, showFor) * 1000);
+
+      /* Countdown ticker — only if a countdown was rendered. */
+      clearInterval(timers.tick);
+      timers.tick = null;
+
+      if (countdownNode && countdownCfg) {
+        var autoClose = boolVal(
+          pick(countdownCfg, ["autoCloseAtZero", "autoClose", "closeAtZero", "closeOnFinish"], true),
+          true
+        );
+
+        timers.tick = setInterval(function () {
+          remaining -= 1;
+
+          if (remaining <= 0) {
+            remaining = 0;
+            setCountdownText(countdownNode, countdownCfg, remaining);
+            clearInterval(timers.tick);
+            timers.tick = null;
+            if (autoClose) closeAd();
+            return;
+          }
+
+          setCountdownText(countdownNode, countdownCfg, remaining);
+        }, 1000);
+      }
+    }
+
+    function closeAd() {
+      if (!showing) return;
+      showing = false;
+
+      clearTimeout(timers.show);
+      timers.show = null;
+      clearInterval(timers.tick);
+      timers.tick = null;
+      clearTimeout(timers.next);
+      timers.next = null;
+
+      rootEl.classList.remove("ad-on");
+      rootEl.setAttribute("aria-hidden", "true");
+      containerEl.innerHTML = "";
+      chromeEl.innerHTML = "";
+      countdownNode = null;
+      countdownCfg = null;
+      unlockScroll();
+
+      var maxShows = numOrNull(pick(config, ["behavior.maxShows", "maxShows", "timing.maxShows"], null));
+      if (maxShows !== null && maxShows > 0 && showCount >= maxShows) return;
+
+      var repeat = timingNum("repeatEverySeconds", 45, null);
+      if (repeat > 0 && ads.length) {
+        scheduleNext(repeat);
+      }
+    }
+
+    function scheduleNext(seconds) {
+      clearTimeout(timers.next);
+      timers.next = null;
+      var s = numOrNull(seconds);
+      if (s === null) return;
+      if (s < 0) s = 0;
+      timers.next = setTimeout(showNext, s * 1000);
+    }
+
+    /* ============================================================
+       GLOBAL EVENTS
+       ============================================================ */
+    function onOverlayClick(ev) {
+      var t = ev.target;
+      if (t === rootEl || t === scrimEl || t === stageEl || t === containerEl || t === chromeEl) {
+        if (dismissOnOutsideTap) closeAd();
+      }
+    }
+
+    function onKeyDown(ev) {
+      if (!showing) return;
+      /* Escape only closes if the config allows outside dismissal. */
+      if ((ev.key === "Escape" || ev.keyCode === 27) && dismissOnOutsideTap) closeAd();
+    }
+
+    if (rootEl) rootEl.addEventListener("click", onOverlayClick);
+    document.addEventListener("keydown", onKeyDown);
+
+    /* ============================================================
+       LOAD FROM ads.json
+       ============================================================ */
+    function load(cfg) {
+      if (!isObj(cfg)) return;
+
+      config = cfg;
+
+      var enabled = boolVal(pick(cfg, ["enabled", "adsEnabled", "isEnabled"], true), true);
+      var timingEnabled = boolVal(pick(cfg, ["timing.enabled", "behavior.enabled", "schedule.enabled"], true), true);
+
+      ads = normalizeAds(cfg);
+
+      if (!enabled || !timingEnabled || !ads.length) return;
+
+      scheduleNext(timingNum("initialDelaySeconds", 1, null));
+    }
+
+    return {
+      load: load,
+      show: showNext,
+      close: closeAd,
+      isShowing: function () { return showing; },
+      getConfig: function () { return config; },
+      getAds: function () { return ads.slice(); }
+    };
+  })();
+
+  /* Small public API for native layer / console debugging */
+  window.AdManager = {
+    show: function () { AdSystem.show(); },
+    close: function () { AdSystem.close(); },
+    isShowing: function () { return AdSystem.isShowing(); },
+    config: function () { return AdSystem.getConfig(); },
+    ads: function () { return AdSystem.getAds(); }
+  };
+
+  /* Fetch ads.json, parse it, store it, forward it, render it. */
   function loadAdsConfig() {
     if (typeof fetch !== "function") {
       console.error("ADS CONFIG ERROR:", "fetch() is not supported in this WebView");
@@ -1408,14 +2561,19 @@ body{
         return response.json();
       })
       .then(function (config) {
-        /* Store the loaded configuration globally */
         window.REMOTE_ADS_CONFIG = config;
 
-        /* Forward the COMPLETE JSON configuration to Android */
+        /* Forward the COMPLETE JSON configuration to Android (if present) */
         sendAdsConfigToAndroid(config);
+
+        /* Render the ads entirely from the remote configuration */
+        try {
+          AdSystem.load(config);
+        } catch (adError) {
+          console.error("ADS RENDER ERROR:", adError);
+        }
       })
       .catch(function (error) {
-        /* Never break the app if the config cannot be loaded */
         console.error("ADS CONFIG ERROR:", error);
       });
   }

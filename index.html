@@ -1346,6 +1346,81 @@ body{
   checkAllBtn.addEventListener("click", checkAll);
 
   /* ============================================================
+     REMOTE ADS CONFIG
+     ------------------------------------------------------------
+     Loads the remote ads.json configuration at application start,
+     stores it globally and forwards the COMPLETE JSON to the
+     Android native layer when a bridge is available.
+     The remote file is the ONLY source of truth for ad values.
+     ============================================================ */
+  var ADS_CONFIG_URL =
+    "https://boktoss2345.github.io/App-Manager-Update-Updater-35648/ads.json";
+
+  /* Send the complete parsed configuration to the native layer.
+     Supports two bridges, never throws if neither exists. */
+  function sendAdsConfigToAndroid(config) {
+    var payload;
+
+    try {
+      payload = JSON.stringify(config);
+    } catch (stringifyError) {
+      console.error("ADS CONFIG ERROR:", stringifyError);
+      return;
+    }
+
+    /* Preferred bridge: window.AndroidAds.loadAdsConfig(json) */
+    try {
+      if (window.AndroidAds &&
+          typeof window.AndroidAds.loadAdsConfig === "function") {
+        window.AndroidAds.loadAdsConfig(payload);
+        return;
+      }
+    } catch (bridgeErrorA) {
+      console.error("ADS CONFIG ERROR:", bridgeErrorA);
+    }
+
+    /* Fallback bridge: window.Android.onAdsConfig(json) */
+    try {
+      if (window.Android &&
+          typeof window.Android.onAdsConfig === "function") {
+        window.Android.onAdsConfig(payload);
+        return;
+      }
+    } catch (bridgeErrorB) {
+      console.error("ADS CONFIG ERROR:", bridgeErrorB);
+    }
+  }
+
+  /* Fetch ads.json, parse it, store it, forward it. */
+  function loadAdsConfig() {
+    if (typeof fetch !== "function") {
+      console.error("ADS CONFIG ERROR:", "fetch() is not supported in this WebView");
+      return;
+    }
+
+    var url = ADS_CONFIG_URL + "?t=" + Date.now();
+
+    fetch(url, { cache: "no-store" })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error("HTTP " + response.status + " " + response.statusText);
+        }
+        return response.json();
+      })
+      .then(function (config) {
+        /* Store the loaded configuration globally */
+        window.REMOTE_ADS_CONFIG = config;
+
+        /* Forward the COMPLETE JSON configuration to Android */
+        sendAdsConfigToAndroid(config);
+      })
+      .catch(function (error) {
+        /* Never break the app if the config cannot be loaded */
+        console.error("ADS CONFIG ERROR:", error);
+      });
+  }
+
+  /* ============================================================
      INIT
      ============================================================ */
   function init() {
@@ -1364,6 +1439,9 @@ body{
     renderUpdates();
     applyFilter();
     refreshStats();
+
+    /* Load remote advertising configuration */
+    loadAdsConfig();
   }
 
   init();
